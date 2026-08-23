@@ -83,16 +83,17 @@ func (client *Client) Run() error {
 	messageId := 0
 	for scanner.Scan() {
 		clientMessage := scanner.Text()
+		messageBytes := []byte(clientMessage)
 
 		messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId}
 		logger.Info(mainAction, logger.InProgress, messageArgs...)
 
-		if err := safe_socket.SendAll(client.conn, []byte(clientMessage)); err != nil {
+		if err := safe_socket.SendAll(client.conn, messageBytes); err != nil {
 			logger.Error("send-message", logger.Fail, messageArgs...)
 			return err
 		}
 
-		responseBuffer, err := safe_socket.RecvAll(client.conn, ECHO_CLIENT_BUFFER_SIZE)
+		responseBuffer, err := safe_socket.RecvAll(client.conn, len(messageBytes))
 		if err != nil {
 			logger.Error("recv-response", logger.Fail, messageArgs...)
 			return err
