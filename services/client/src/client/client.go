@@ -1,7 +1,10 @@
 package client
 
 import (
+	"bufio"
+	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/logger"
@@ -62,11 +65,27 @@ func (client *Client) Run() error {
 	const mainAction = "test-echo-server"
 	defer client.conn.Close()
 
-	for messageId := range ECHO_CLIENT_MESSAGE_AMOUNT {
+	inputFile, err := os.Open(os.Getenv("INPUT_FILE"))
+	if err != nil {
+		fmt.Println("Error abriendo el archivo input")
+		return err
+	}
+	defer inputFile.Close()
+
+	outputFile, err := os.Create(os.Getenv("OUTPUT_FILE"))
+	if err != nil {
+		fmt.Println("Error creando el archivo output")
+		return err
+	}
+	defer outputFile.Close()
+
+	scanner := bufio.NewScanner(inputFile)
+	messageId := 0
+	for scanner.Scan() {
+		clientMessage := scanner.Text()
+
 		messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId}
 		logger.Info(mainAction, logger.InProgress, messageArgs...)
-
-		clientMessage := client.config.AgencyId
 
 		if err := safe_socket.SendAll(client.conn, []byte(clientMessage)); err != nil {
 			logger.Error("send-message", logger.Fail, messageArgs...)
@@ -79,13 +98,26 @@ func (client *Client) Run() error {
 			return err
 		}
 
-		if string(responseBuffer) == clientMessage {
+		responseString := string(responseBuffer)
+		_, err = outputFile.WriteString(responseString + "\n")
+		if err != nil {
+			logger.Error("write-response", logger.Fail, messageArgs...)
+			return err
+		}
+
+		if responseString != clientMessage {
 			logger.Error("check-response", logger.Fail, messageArgs...)
 			return err
 		}
 
+		messageId++
 		time.Sleep(ECHO_CLIENT_MESSAGE_DELAY_MS * time.Millisecond)
 	}
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error escaneando linea del archivo")
+		return err
+	}
+
 	logger.Info(mainAction, logger.Success, "agency-id", client.config.AgencyId)
 
 	return nil
