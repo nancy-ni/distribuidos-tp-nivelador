@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/logger"
-	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/safe_socket"
+	errors "github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol/common"
+	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol/communication"
+	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol/messages"
 )
 
 const CONNECTION_ATTEMPTS_MAX = 3
 const CONNECTION_ATTEMPS_DELAY_MS = 200
-
-const ECHO_CLIENT_BUFFER_SIZE = 512
-const ECHO_CLIENT_MESSAGE_AMOUNT = 3
-const ECHO_CLIENT_MESSAGE_DELAY_MS = 1000
 
 type ClientConfig struct {
 	ServerHost string
@@ -62,64 +62,134 @@ func connectToServer(host, port string) (net.Conn, error) {
 }
 
 func (client *Client) Run() error {
-	const mainAction = "test-echo-server"
 	defer client.conn.Close()
+
+	if err := client.sendBets(); err != nil {
+		return err
+	}
+
+	if err := client.sendWinnersRequest(); err != nil {
+		return err
+	}
+
+	if err := client.receiveWinners(); err != nil {
+		return err
+	}
+
+	logger.Info("test-echo-server", logger.Success, "agency-id", client.config.AgencyId)
+
+	return nil
+}
+
+func (client *Client) sendBets() error {
+	agencyIdNumber, err := strconv.ParseUint(client.config.AgencyId, 10, 32)
+	if err != nil {
+		return fmt.Errorf(errors.InvalidAgencyIdError)
+	}
 
 	inputFile, err := os.Open(os.Getenv("INPUT_FILE"))
 	if err != nil {
-		fmt.Println("Error abriendo el archivo input")
-		return err
+		return fmt.Errorf(errors.OpenInputFileError)
 	}
 	defer inputFile.Close()
-
-	outputFile, err := os.Create(os.Getenv("OUTPUT_FILE"))
-	if err != nil {
-		fmt.Println("Error creando el archivo output")
-		return err
-	}
-	defer outputFile.Close()
 
 	scanner := bufio.NewScanner(inputFile)
 	messageId := 0
 	for scanner.Scan() {
-		clientMessage := scanner.Text()
-		messageBytes := []byte(clientMessage)
-
+		betString := scanner.Text()
 		messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId}
-		logger.Info(mainAction, logger.InProgress, messageArgs...)
 
-		if err := safe_socket.SendAll(client.conn, messageBytes); err != nil {
+		bet, err := assembleBet(betString, uint32(agencyIdNumber))
+		if err != nil {
+			logger.Error("assemble-bet", logger.Fail, messageArgs...)
+			continue
+		}
+		betPacket := communication.NewPacket(messages.BET_CODE, &bet)
+		logger.Info("test-echo-server", logger.InProgress, messageArgs...)
+
+		if err := communication.SendPacket(client.conn, betPacket); err != nil {
 			logger.Error("send-message", logger.Fail, messageArgs...)
 			return err
 		}
-
-		responseBuffer, err := safe_socket.RecvAll(client.conn, len(messageBytes))
-		if err != nil {
-			logger.Error("recv-response", logger.Fail, messageArgs...)
-			return err
-		}
-
-		responseString := string(responseBuffer)
-		_, err = outputFile.WriteString(responseString + "\n")
-		if err != nil {
-			logger.Error("write-response", logger.Fail, messageArgs...)
-			return err
-		}
-
-		if responseString != clientMessage {
-			logger.Error("check-response", logger.Fail, messageArgs...)
-			return err
-		}
-
 		messageId++
-		time.Sleep(ECHO_CLIENT_MESSAGE_DELAY_MS * time.Millisecond)
 	}
 	if err := scanner.Err(); err != nil {
-		fmt.Println("Error escaneando linea del archivo")
+		return fmt.Errorf(errors.ScanFileError)
+	}
+
+	return nil
+}
+
+func (client *Client) sendWinnersRequest() error {
+	agencyIdNumber, err := strconv.ParseUint(client.config.AgencyId, 10, 32)
+	if err != nil {
+		return fmt.Errorf(errors.InvalidAgencyIdError)
+	}
+
+	askWinners := messages.NewInquirie(uint32(agencyIdNumber))
+	askWinnersPacket := communication.NewPacket(messages.ASK_WINNERS_CODE, &askWinners)
+	if err := communication.SendPacket(client.conn, askWinnersPacket); err != nil {
+		logger.Error("ask-winners", logger.Fail)
 		return err
 	}
 
-	logger.Info(mainAction, logger.Success, "agency-id", client.config.AgencyId)
+	return nil
+}
+
+func (client *Client) receiveWinners() error {
+	outputFile, err := os.Create(os.Getenv("OUTPUT_FILE"))
+	if err != nil {
+		return fmt.Errorf(errors.OpenOutputFileError)
+	}
+	defer outputFile.Close()
+
+	for {
+		// TODO: agregar timeout socket
+		packet, err := communication.ReceivePacket(client.conn)
+		if err != nil {
+			logger.Error("recv-response", logger.Fail)
+			return err
+		}
+		if packet.MessageCode == messages.FINISH_CODE {
+			break
+		}
+		if packet.MessageCode != messages.WINNER_CODE {
+			logger.Error("recv-response", logger.Fail)
+			continue
+		}
+
+		switch message := packet.Message.(type) {
+		case *messages.Bet:
+			_, err := outputFile.WriteString(message.ToString() + "\n")
+			fmt.Println("RECIBI WINNER CORRECTAMENTE")
+			if err != nil {
+				logger.Error("write-response", logger.Fail)
+				continue
+			}
+		default:
+			logger.Error("recv-response", logger.Fail)
+			continue
+		}
+	}
 
 	return nil
+}
+
+func assembleBet(betString string, agencyId uint32) (messages.Bet, error) {
+	betData := strings.Split(betString, ",")
+	if len(betData) != 5 {
+		return messages.Bet{}, fmt.Errorf(errors.AssembleBetError, betData)
+	}
+	firstName, lastName, dniString, birthday, betNumberString := betData[0], betData[1], betData[2], betData[3], betData[4]
+	dni, err := strconv.ParseUint(dniString, 10, 32)
+	if err != nil {
+		return messages.Bet{}, fmt.Errorf(errors.AssembleBetError, betData)
+	}
+	betNumber, err := strconv.ParseUint(betNumberString, 10, 16)
+	if err != nil {
+		return messages.Bet{}, fmt.Errorf(errors.AssembleBetError, betData)
+	}
+
+	bet := messages.NewBet(agencyId, firstName, lastName, uint32(dni), birthday, uint16(betNumber))
+	return bet, nil
 }
