@@ -1,4 +1,4 @@
-from protocol.messages import message_codes, bet, ask_winners
+from protocol.messages import message_codes, bet, ask_winners, batch
 from protocol.common import errors
 
 class Packet:
@@ -24,8 +24,8 @@ class Packet:
 
         try:
             match message_code:
-                case message_codes.BET_CODE:
-                    message, err = bet.BetWrapper.from_bytes(data[offset:])
+                case message_codes.BATCH_CODE:
+                    message, err = batch.Batch.from_bytes(data[offset:])
                 case message_codes.ASK_WINNERS_CODE:
                     message, err = ask_winners.AskWinners.from_bytes(data[offset:])
                 case _:

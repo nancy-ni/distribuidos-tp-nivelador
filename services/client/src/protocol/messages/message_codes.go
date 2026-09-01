@@ -2,7 +2,8 @@ package messages
 
 const (
 	BET_CODE         = 0x01
-	ASK_WINNERS_CODE = 0x02
-	WINNER_CODE      = 0x03
-	FINISH_CODE      = 0x04
+	BATCH_CODE       = 0x02
+	ASK_WINNERS_CODE = 0x03
+	WINNER_CODE      = 0x04
+	FINISH_CODE      = 0x05
 )

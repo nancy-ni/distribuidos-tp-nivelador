@@ -1,6 +1,8 @@
 PACKET_TOO_SHORT_ERR = "Longitud del paquete es corta"
+BATCH_TOO_SHORT_ERR = "Longitud del batch es corta"
 UNEXPECTED_MESSAGE_ERR = "Mensaje de codigo desconocido"
 DESERIALIZE_PACKET_ERR = "Error al deserializar el paquete"
 DESERIALIZE_BET_ERR = "Error al deserializar la apuesta"
 DESERIALIZE_ASK_WINNERS_ERR = "Error al deserializar la consulta"
 DESERIALIZE_FINISH_ERR = "Error al deserializar el mensaje final"
+DESERIALIZE_BATCH_ERR = "Error al deserializar el bache"

@@ -15,12 +15,12 @@ class Server:
         self.server_host = server_host
         self.server_port = server_port
 
-    def _handle_client(self, client_socket):
+    def _handle_client(self, client_socket, lottery):
         action = "handle-client"
         message_amount = 0
         try:
             logger.info(action, logger.LogResult.in_progress)
-            client_agency_id, lottery, message_amount = self.receive_bets(client_socket)
+            client_agency_id, message_amount = self.receive_bets(client_socket, lottery)
 
             if client_agency_id is not None:
                 self.send_winners(client_socket, client_agency_id, lottery)
@@ -38,9 +38,8 @@ class Server:
             )
             raise e
 
-    def receive_bets(self, client_socket):
+    def receive_bets(self, client_socket, lottery):
         client_agency_id = None
-        lottery = None
 
         action = "handle-client"
         message_amount = 0
@@ -51,23 +50,21 @@ class Server:
                 continue
             if packet.message_code == message_codes.ASK_WINNERS_CODE:
                 break
-            if packet.message_code != message_codes.BET_CODE:
+            if packet.message_code != message_codes.BATCH_CODE or len(packet.message.bets) == 0:
                 logger.error(action, logger.LogResult.fail, "messages-amount", message_amount)
                 continue
 
             if client_agency_id is None:
-                client_agency_id = packet.message.bet.agency_id
-                lottery = Lottery(f"received_bets_{client_agency_id}.csv")
-            lottery.store_bets([packet.message.bet])
+                client_agency_id = packet.message.bets[0].bet.agency_id
+
+            lottery.store_bets(packet.message.get_bets())
             message_amount += 1
 
-        return client_agency_id, lottery, message_amount
-
-
+        return client_agency_id, message_amount
 
     def send_winners(self, client_socket, client_agency_id, lottery):
         for bet in lottery.load_bets():
-            if lottery.has_won(bet):
+            if lottery.has_won(bet) and bet.agency_id == client_agency_id:
                 bet_wrapper = BetWrapper(bet)
                 winner_message = Winner(bet_wrapper)
                 packet = Packet(message_codes.WINNER_CODE, winner_message)
@@ -83,6 +80,8 @@ class Server:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
             server_socket.bind((self.server_host, self.server_port))
             server_socket.listen()
+
+            lottery = Lottery("received_bets.csv")
             while True:
                 try:
                     logger.info(action, logger.LogResult.in_progress)
@@ -92,4 +91,4 @@ class Server:
                     raise e
                 logger.info(action, logger.LogResult.success)
 
-                self._handle_client(client_socket)
+                self._handle_client(client_socket, lottery)

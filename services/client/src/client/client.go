@@ -93,7 +93,17 @@ func (client *Client) sendBets() error {
 	}
 	defer inputFile.Close()
 
+	batchSizeStr := os.Getenv("BATCH_SIZE")
+	if batchSizeStr == "" {
+		return fmt.Errorf(errors.InvalidBatchSizeError)
+	}
+	batchSize, err := strconv.Atoi(batchSizeStr)
+	if err != nil {
+		return fmt.Errorf(errors.InvalidBatchSizeError)
+	}
+
 	scanner := bufio.NewScanner(inputFile)
+	batch := messages.NewBatch([]messages.Bet{})
 	messageId := 0
 	for scanner.Scan() {
 		betString := scanner.Text()
@@ -104,17 +114,37 @@ func (client *Client) sendBets() error {
 			logger.Error("assemble-bet", logger.Fail, messageArgs...)
 			continue
 		}
-		betPacket := communication.NewPacket(messages.BET_CODE, &bet)
-		logger.Info("test-echo-server", logger.InProgress, messageArgs...)
 
-		if err := communication.SendPacket(client.conn, betPacket); err != nil {
-			logger.Error("send-message", logger.Fail, messageArgs...)
-			return err
+		batch.Bets = append(batch.Bets, bet)
+		if len(batch.Bets) == batchSize {
+			batchPacket := communication.NewPacket(messages.BATCH_CODE, &batch)
+			logger.Info("test-echo-server", logger.InProgress, messageArgs...)
+
+			if err := communication.SendPacket(client.conn, batchPacket); err != nil {
+				logger.Error("send-message", logger.Fail, messageArgs...)
+				return err
+			}
+			batch.Bets = []messages.Bet{}
+			messageId++
 		}
-		messageId++
+
 	}
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf(errors.ScanFileError)
+	}
+
+	messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId}
+	if len(batch.Bets) > 0 {
+		batchPacket := communication.NewPacket(messages.BATCH_CODE, &batch)
+		logger.Info("test-echo-server", logger.InProgress, messageArgs...)
+
+		if err := communication.SendPacket(client.conn, batchPacket); err != nil {
+			logger.Error("send-message", logger.Fail, messageArgs...)
+			return err
+		}
+
+		batch.Bets = []messages.Bet{}
+		messageId++
 	}
 
 	return nil
