@@ -32,7 +32,7 @@ func NewBet(agencyId uint32, firstName string, lastName string, dni uint32, birt
 }
 
 func (bet *Bet) ToString() string {
-	return bet.firstName + "," + bet.lastName + "," + bet.birthday + "," + strconv.Itoa(int(bet.dni)) + "," + strconv.Itoa(int(bet.betNumber))
+	return bet.firstName + "," + bet.lastName + "," + strconv.Itoa(int(bet.dni)) + "," + bet.birthday + "," + strconv.Itoa(int(bet.betNumber))
 }
 
 func (bet *Bet) ToBytes() []byte {
