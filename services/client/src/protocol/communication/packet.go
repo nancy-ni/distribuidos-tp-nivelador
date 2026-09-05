@@ -48,6 +48,8 @@ func PacketFromBytes(data []byte) (Packet, error) {
 	switch messageCode {
 	case messages.BET_CODE:
 		message, err = messages.BetFromBytes(data[offset:])
+	case messages.ACK_CODE:
+		message, err = messages.AckFromBytes(data[offset:])
 	case messages.ASK_WINNERS_CODE:
 		message, err = messages.AskWinnersFromBytes(data[offset:])
 	case messages.WINNER_CODE:

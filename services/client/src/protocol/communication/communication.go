@@ -12,10 +12,8 @@ func SendPacket(socket io.Writer, packet Packet) error {
 	packetLength := uint16(len(packetBytes))
 	packetLengthBytes := protocol.Uint16ToBytes(packetLength)
 
-	if err := safe_socket.SendAll(socket, packetLengthBytes); err != nil {
-		return err
-	}
-	if err := safe_socket.SendAll(socket, packetBytes); err != nil {
+	fullPacket := append(packetLengthBytes, packetBytes...)
+	if err := safe_socket.SendAll(socket, fullPacket); err != nil {
 		return err
 	}
 	return nil

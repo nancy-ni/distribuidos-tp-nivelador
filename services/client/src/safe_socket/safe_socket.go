@@ -1,7 +1,6 @@
 package safe_socket
 
 import (
-	"fmt"
 	"io"
 )
 
@@ -14,9 +13,6 @@ func SendAll(socket io.Writer, bytes []byte) error {
 		n, err := socket.Write(bytes[totalSent:])
 		if err != nil {
 			return err
-		}
-		if n == 0 {
-			return fmt.Errorf("Escritura devuelve 0 bytes")
 		}
 		totalSent += n
 	}
@@ -32,9 +28,6 @@ func RecvAll(socket io.Reader, size int) ([]byte, error) {
 		n, err := socket.Read(buff[totalRead:])
 		if err != nil {
 			return nil, err
-		}
-		if n == 0 {
-			return nil, fmt.Errorf("Lectura devuelve 0 bytes")
 		}
 		totalRead += n
 	}

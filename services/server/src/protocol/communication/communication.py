@@ -8,8 +8,8 @@ def send_packet(socket, packet):
         packet_length = len(packet_bytes)
         packet_length_bytes = uint16_to_bytes(packet_length)
 
-        safe_socket.send_all(socket, packet_length_bytes)
-        safe_socket.send_all(socket, packet_bytes)
+        full_packet = packet_length_bytes + packet_bytes
+        safe_socket.send_all(socket, full_packet)
     
         return None
     except Exception as e:

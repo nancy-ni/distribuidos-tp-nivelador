@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/logger"
@@ -16,7 +19,7 @@ import (
 )
 
 const CONNECTION_ATTEMPTS_MAX = 3
-const CONNECTION_ATTEMPS_DELAY_MS = 200
+const CONNECTION_ATTEMPS_DELAY_MS = 500
 
 type ClientConfig struct {
 	ServerHost string
@@ -25,8 +28,10 @@ type ClientConfig struct {
 }
 
 type Client struct {
-	conn   net.Conn
-	config ClientConfig
+	conn           net.Conn
+	config         ClientConfig
+	isShuttingDown bool
+	shutdownMutex  sync.Mutex
 }
 
 func NewClient(config ClientConfig) (*Client, error) {
@@ -61,8 +66,37 @@ func connectToServer(host, port string) (net.Conn, error) {
 	return conn, err
 }
 
+func (client *Client) setShutdown() {
+	client.shutdownMutex.Lock()
+	defer client.shutdownMutex.Unlock()
+	client.isShuttingDown = true
+}
+
+func (client *Client) checkShutdown() bool {
+	client.shutdownMutex.Lock()
+	defer client.shutdownMutex.Unlock()
+	return client.isShuttingDown
+}
+
 func (client *Client) Run() error {
 	defer client.conn.Close()
+
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signalChannel)
+
+	done := make(chan struct{})
+	defer close(done)
+
+	go func() {
+		select {
+		case <-signalChannel:
+			client.setShutdown()
+			client.conn.Close()
+		case <-done:
+			return
+		}
+	}()
 
 	if err := client.sendBets(); err != nil {
 		return err
@@ -121,6 +155,18 @@ func (client *Client) sendBets() error {
 			logger.Info("test-echo-server", logger.InProgress, messageArgs...)
 
 			if err := communication.SendPacket(client.conn, batchPacket); err != nil {
+				if client.checkShutdown() {
+					return nil
+				}
+				logger.Error("send-message", logger.Fail, messageArgs...)
+				return err
+			}
+
+			_, err := communication.ReceivePacket(client.conn)
+			if err != nil {
+				if client.checkShutdown() {
+					return nil
+				}
 				logger.Error("send-message", logger.Fail, messageArgs...)
 				return err
 			}
@@ -139,6 +185,9 @@ func (client *Client) sendBets() error {
 		logger.Info("test-echo-server", logger.InProgress, messageArgs...)
 
 		if err := communication.SendPacket(client.conn, batchPacket); err != nil {
+			if client.checkShutdown() {
+				return nil
+			}
 			logger.Error("send-message", logger.Fail, messageArgs...)
 			return err
 		}
@@ -177,6 +226,9 @@ func (client *Client) receiveWinners() error {
 		// TODO: agregar timeout socket
 		packet, err := communication.ReceivePacket(client.conn)
 		if err != nil {
+			if client.checkShutdown() {
+				return nil
+			}
 			logger.Error("recv-response", logger.Fail)
 			return err
 		}

@@ -1,4 +1,3 @@
-import os
 import queue
 import threading
 
@@ -43,12 +42,16 @@ class LotteryManager:
                 self._send_all_winners(ready_agencies)
                 ready_agencies.clear()
 
+        for _, response_queue in ready_agencies.items():
+            response_queue.put(None)
+
     def _send_all_winners(self, ready_agencies):
-        for bet in self.lottery.load_bets():
-            agency_id = bet.agency_id
-            if self.lottery.has_won(bet) and agency_id in ready_agencies:
-                response_queue = ready_agencies[agency_id]
-                response_queue.put(bet)
+        with self.lock:
+            for bet in self.lottery.load_bets():
+                agency_id = bet.agency_id
+                if self.lottery.has_won(bet) and agency_id in ready_agencies:
+                    response_queue = ready_agencies[agency_id]
+                    response_queue.put(bet)
             
         for _, response_queue in ready_agencies.items():
             response_queue.put(None)

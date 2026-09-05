@@ -2,10 +2,12 @@ import socket
 import logger
 import os
 import threading
+import signal
 from lottery import Lottery
 from protocol.messages import message_codes
 from protocol.messages.winner import Winner
 from protocol.messages.finish import Finish
+from protocol.messages.ack import Ack
 from protocol.messages.bet import BetWrapper
 from protocol.communication import communication
 from protocol.communication.packet import Packet
@@ -16,7 +18,16 @@ class Server:
     def __init__(self, server_host: str, server_port: int) -> None:
         self.server_host = server_host
         self.server_port = server_port
+        self.server_socket = None
+        self.active_connections = []
+        self.lock = threading.Lock()
         self.shutdown_event = threading.Event()
+        signal.signal(signal.SIGTERM, self._handle_shutdown)
+
+    def _handle_shutdown(self, signum, frame):
+        self.shutdown_event.set()
+        if self.server_socket is not None:
+            self.server_socket.close()
 
     def _handle_client(self, client_socket, lottery_manager):
         action = "handle-client"
@@ -41,12 +52,18 @@ class Server:
             )
             raise e
 
+        finally:
+            client_socket.close()
+            with self.lock:
+                if client_socket in self.active_connections:
+                    self.active_connections.remove(client_socket)
+
     def receive_bets(self, client_socket, lottery_manager):
         client_agency_id = None
 
         action = "handle-client"
         message_amount = 0
-        while True:
+        while not self.shutdown_event.is_set():
             packet, err = communication.receive_packet(client_socket)
             if err:
                 logger.error("recv-packet", logger.LogResult.fail, "messages-amount", message_amount)
@@ -59,6 +76,10 @@ class Server:
 
             if client_agency_id is None:
                 client_agency_id = packet.message.bets[0].bet.agency_id
+
+            ack_message = Ack(client_agency_id)
+            ack_packet = Packet(message_codes.ACK_CODE, ack_message)
+            communication.send_packet(client_socket, ack_packet)
 
             lottery_manager.store_bets(packet.message.get_bets())
             message_amount += 1
@@ -77,7 +98,6 @@ class Server:
             winner_message = Winner(winner_bet_wrapper)
             packet = Packet(message_codes.WINNER_CODE, winner_message)
             communication.send_packet(client_socket, packet)
-            print("WINNER ENVIADO CORRECTAMENTE")
 
         finish_message = Finish(client_agency_id)
         packet = Packet(message_codes.FINISH_CODE, finish_message)
@@ -90,22 +110,38 @@ class Server:
         min_quorum = int(os.getenv("AGENCY_QUORUM_MIN"))
         lottery_manager = LotteryManager(lottery, min_quorum)
         lottery_manager.start()
+        handlers = []
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+            self.server_socket = server_socket
             server_socket.bind((self.server_host, self.server_port))
             server_socket.listen()
-
-            handlers = []
-            while True:
+            
+            while not self.shutdown_event.is_set():
                 try:
                     logger.info(action, logger.LogResult.in_progress)
                     client_socket, _ = server_socket.accept()
+                    print("LLEGUE ACA")
                 except Exception as e:
+                    if self.shutdown_event.is_set():
+                        break
                     logger.error(action, logger.LogResult.fail)
                     raise e
                 logger.info(action, logger.LogResult.success)
 
+                with self.lock:
+                    self.active_connections.append(client_socket)
+
                 thread = threading.Thread(target=self._handle_client, args=(client_socket, lottery_manager))
                 handlers.append(thread)
-
                 thread.start()
+
+        lottery_manager.stop()
+
+        with self.lock:
+            for client_socket in self.active_connections:
+                client_socket.close()
+
+        for thread in handlers:
+            thread.join()
+            

@@ -6,4 +6,5 @@ const (
 	ASK_WINNERS_CODE = 0x03
 	WINNER_CODE      = 0x04
 	FINISH_CODE      = 0x05
+	ACK_CODE         = 0x06
 )
