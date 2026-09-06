@@ -7,6 +7,8 @@ import (
 )
 
 const BATCH_MIN_LEN = 2
+const BATCH_SIZE_LEN_BYTES = 2
+const BATCH_LENGTH_BYTES = 2
 
 type Batch struct {
 	Bets []Bet
@@ -41,23 +43,23 @@ func BatchFromBytes(data []byte) (*Batch, error) {
 	}
 	offset := 0
 
-	batchSize, err := common.BytesToUint16(data[offset : offset+2])
+	batchSize, err := common.BytesToUint16(data[offset : offset+BATCH_SIZE_LEN_BYTES])
 	if err != nil {
 		return nil, fmt.Errorf(common.DeserializeBatchError)
 	}
-	offset += 2
+	offset += BATCH_SIZE_LEN_BYTES
 
 	batch := Batch{Bets: make([]Bet, 0, batchSize)}
 
 	for _ = range batchSize {
-		if len(data) < offset+2 {
+		if len(data) < offset+BATCH_LENGTH_BYTES {
 			return nil, fmt.Errorf(common.DeserializeBatchError)
 		}
 		betLength, err := common.BytesToUint16(data[offset : offset+2])
 		if err != nil {
 			return nil, fmt.Errorf(common.DeserializeBatchError)
 		}
-		offset += 2
+		offset += BATCH_LENGTH_BYTES
 
 		if len(data) < offset+int(betLength) {
 			return nil, fmt.Errorf(common.DeserializeBatchError)

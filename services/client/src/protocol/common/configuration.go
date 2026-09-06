@@ -1,0 +1,6 @@
+package common
+
+const (
+	SOCKET_WRITE_TIMEOUT_SEC = 30
+	SOCKET_READ_TIMEOUT_SEC  = 30
+)

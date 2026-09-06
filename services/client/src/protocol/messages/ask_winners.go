@@ -15,7 +15,7 @@ func NewInquirie(agencyId uint32) AskWinners {
 }
 
 func (inquirie *AskWinners) ToBytes() []byte {
-	bytes := make([]byte, 0, 4)
+	bytes := make([]byte, 0, AGENCY_ID_LEN_BYTES)
 
 	agencyIdBytes := common.Uint32ToBytes(inquirie.agencyId)
 	bytes = append(bytes, agencyIdBytes...)
@@ -24,11 +24,11 @@ func (inquirie *AskWinners) ToBytes() []byte {
 }
 
 func AskWinnersFromBytes(data []byte) (*AskWinners, error) {
-	if len(data) < 4 {
+	if len(data) < AGENCY_ID_LEN_BYTES {
 		return nil, fmt.Errorf(common.AskWinnersTooShort)
 	}
 
-	agencyId, err := common.BytesToUint32(data[:4])
+	agencyId, err := common.BytesToUint32(data[:AGENCY_ID_LEN_BYTES])
 	if err != nil {
 		return nil, fmt.Errorf(common.DeserializeAskWinnersError)
 	}

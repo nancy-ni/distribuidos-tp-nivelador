@@ -7,7 +7,8 @@ import (
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol/messages"
 )
 
-const PACKET_MIN_LEN = 1
+const PACKET_MIN_LEN = 2
+const PACKET_LENGTH_BYTES = 2
 
 type Packet struct {
 	MessageCode uint8

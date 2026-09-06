@@ -11,7 +11,7 @@ type Ack struct {
 }
 
 func (a *Ack) ToBytes() []byte {
-	bytes := make([]byte, 0, 4)
+	bytes := make([]byte, 0, AGENCY_ID_LEN_BYTES)
 
 	agencyIdBytes := common.Uint32ToBytes(a.agencyId)
 	bytes = append(bytes, agencyIdBytes...)
@@ -20,13 +20,13 @@ func (a *Ack) ToBytes() []byte {
 }
 
 func AckFromBytes(data []byte) (*Ack, error) {
-	if len(data) < 4 {
-		return nil, fmt.Errorf(common.FinishTooShort)
+	if len(data) < AGENCY_ID_LEN_BYTES {
+		return nil, fmt.Errorf(common.AckTooShort)
 	}
 
-	agencyId, err := common.BytesToUint32(data[:4])
+	agencyId, err := common.BytesToUint32(data[:AGENCY_ID_LEN_BYTES])
 	if err != nil {
-		return nil, fmt.Errorf(common.DeserializeFinishError)
+		return nil, fmt.Errorf(common.DeserializeAckError)
 	}
 
 	return &Ack{agencyId: agencyId}, nil

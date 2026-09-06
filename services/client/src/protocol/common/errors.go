@@ -12,6 +12,8 @@ const (
 	AskWinnersTooShort         = "Longitud de la consulta de ganadores es corta"
 	FinishTooShort             = "Longitud del mensaje final es corta"
 	BatchTooShort              = "Longitud del bache es corta"
+	AckTooShort                = "Longitud del ack es corta"
+	ErrorTooShort              = "Longitud del mensaje error es corta"
 	UnexpectedMessage          = "Mensaje de codigo desconocido"
 	DeserializeUint32Error     = "Error al deserializar Uint32"
 	DeserializeUint16Error     = "Error al deserializar Uint16"
@@ -20,4 +22,6 @@ const (
 	DeserializeAskWinnersError = "Error al deserializar la consulta de ganadores"
 	DeserializeFinishError     = "Error al deserializar el mensaje final"
 	DeserializeBatchError      = "Error al deserializar un bache"
+	DeserializeAckError        = "Error al deserializar un ack"
+	DeserializeErrorMsgError   = "Error al deserializar el mensaje de error"
 )

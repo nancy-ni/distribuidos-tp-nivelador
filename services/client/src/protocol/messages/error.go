@@ -6,13 +6,15 @@ import (
 	common "github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol/common"
 )
 
+const ERROR_MSG_MIN_LEN = 1
+
 type ErrorMessage struct {
 	Reason string
 }
 
 func (e *ErrorMessage) ToBytes() []byte {
 	reasonLen := len(e.Reason)
-	totalLen := 1 + reasonLen
+	totalLen := ERROR_MSG_MIN_LEN + reasonLen
 	bytes := make([]byte, 0, totalLen)
 
 	bytes = append(bytes, byte(reasonLen))
@@ -22,13 +24,15 @@ func (e *ErrorMessage) ToBytes() []byte {
 }
 
 func ErrorFromBytes(data []byte) (*ErrorMessage, error) {
-	// Agregar validacion largo + Cambiar mensajes de error
+	if len(data) < ERROR_MSG_MIN_LEN {
+		return nil, fmt.Errorf(common.ErrorTooShort)
+	}
 	offset := 0
 
 	reasonLen := int(data[offset])
 	offset++
 	if len(data) < offset+reasonLen {
-		return nil, fmt.Errorf(common.DeserializeBetError)
+		return nil, fmt.Errorf(common.DeserializeErrorMsgError)
 	}
 	reason := string(data[offset : offset+reasonLen])
 	offset += reasonLen

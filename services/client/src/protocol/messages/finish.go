@@ -11,7 +11,7 @@ type Finish struct {
 }
 
 func (f *Finish) ToBytes() []byte {
-	bytes := make([]byte, 0, 4)
+	bytes := make([]byte, 0, AGENCY_ID_LEN_BYTES)
 
 	agencyIdBytes := common.Uint32ToBytes(f.agencyId)
 	bytes = append(bytes, agencyIdBytes...)
@@ -20,11 +20,11 @@ func (f *Finish) ToBytes() []byte {
 }
 
 func FinishFromBytes(data []byte) (*Finish, error) {
-	if len(data) < 4 {
+	if len(data) < AGENCY_ID_LEN_BYTES {
 		return nil, fmt.Errorf(common.FinishTooShort)
 	}
 
-	agencyId, err := common.BytesToUint32(data[:4])
+	agencyId, err := common.BytesToUint32(data[:AGENCY_ID_LEN_BYTES])
 	if err != nil {
 		return nil, fmt.Errorf(common.DeserializeFinishError)
 	}

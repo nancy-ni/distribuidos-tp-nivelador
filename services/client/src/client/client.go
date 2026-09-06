@@ -21,6 +21,8 @@ import (
 const CONNECTION_ATTEMPTS_MAX = 3
 const CONNECTION_ATTEMPS_DELAY_MS = 500
 
+const BET_ELEMS_LEN = 5
+
 type ClientConfig struct {
 	ServerHost string
 	ServerPort string
@@ -121,28 +123,23 @@ func (client *Client) Run() error {
 }
 
 func (client *Client) sendBets() error {
-	agencyIdNumber, err := strconv.ParseUint(client.config.AgencyId, 10, 32)
-	if err != nil {
-		return fmt.Errorf(errors.InvalidAgencyIdError)
-	}
-
 	inputFile, err := os.Open(os.Getenv("INPUT_FILE"))
 	if err != nil {
 		return fmt.Errorf(errors.OpenInputFileError)
 	}
 	defer inputFile.Close()
 
-	batchSizeStr := os.Getenv("BATCH_SIZE")
-	if batchSizeStr == "" {
-		return fmt.Errorf(errors.InvalidBatchSizeError)
-	}
-	batchSize, err := strconv.Atoi(batchSizeStr)
+	agencyIdNumber, err := client.getAgencyIdNumber()
 	if err != nil {
-		return fmt.Errorf(errors.InvalidBatchSizeError)
+		return err
+	}
+	batchSize, err := client.getBatchSizeNumber()
+	if err != nil {
+		return err
 	}
 
-	scanner := bufio.NewScanner(inputFile)
 	batch := messages.NewBatch([]messages.Bet{})
+	scanner := bufio.NewScanner(inputFile)
 	messageId := 0
 	for scanner.Scan() {
 		betString := scanner.Text()
@@ -217,9 +214,9 @@ func (client *Client) receiveAck() error {
 }
 
 func (client *Client) sendWinnersRequest() error {
-	agencyIdNumber, err := strconv.ParseUint(client.config.AgencyId, 10, 32)
+	agencyIdNumber, err := client.getAgencyIdNumber()
 	if err != nil {
-		return fmt.Errorf(errors.InvalidAgencyIdError)
+		return err
 	}
 
 	askWinners := messages.NewInquirie(uint32(agencyIdNumber))
@@ -269,22 +266,42 @@ func (client *Client) receiveWinners() error {
 
 func assembleBet(betString string, agencyId uint32) (messages.Bet, error) {
 	betData := strings.Split(betString, ",")
-	if len(betData) != 5 {
+	if len(betData) != BET_ELEMS_LEN {
 		return messages.Bet{}, fmt.Errorf(errors.AssembleBetError, betData)
 	}
 	firstName, lastName, dniString, birthday, betNumberString := betData[0], betData[1], betData[2], betData[3], betData[4]
-	if len(firstName) > 255 || len(lastName) > 255 {
+	if len(firstName) > messages.FIRSTNAME_MAX_LEN || len(lastName) > messages.LASTNAME_MAX_LEN {
 		return messages.Bet{}, fmt.Errorf(errors.AssembleBetError, betData)
 	}
-	dni, err := strconv.ParseUint(dniString, 10, 32)
+	dni, err := strconv.ParseUint(dniString, 10, messages.DNI_LEN_BYTES*8)
 	if err != nil {
 		return messages.Bet{}, fmt.Errorf(errors.AssembleBetError, betData)
 	}
-	betNumber, err := strconv.ParseUint(betNumberString, 10, 16)
+	betNumber, err := strconv.ParseUint(betNumberString, 10, messages.BET_NUMBER_LEN_BYTES*8)
 	if err != nil {
 		return messages.Bet{}, fmt.Errorf(errors.AssembleBetError, betData)
 	}
 
 	bet := messages.NewBet(agencyId, firstName, lastName, uint32(dni), birthday, uint16(betNumber))
 	return bet, nil
+}
+
+func (client *Client) getAgencyIdNumber() (uint64, error) {
+	agencyIdNumber, err := strconv.ParseUint(client.config.AgencyId, 10, messages.AGENCY_ID_LEN_BYTES*8)
+	if err != nil {
+		return 0, fmt.Errorf(errors.InvalidAgencyIdError)
+	}
+	return agencyIdNumber, nil
+}
+
+func (client *Client) getBatchSizeNumber() (int, error) {
+	batchSizeStr := os.Getenv("BATCH_SIZE")
+	if batchSizeStr == "" {
+		return 0, fmt.Errorf(errors.InvalidBatchSizeError)
+	}
+	batchSize, err := strconv.Atoi(batchSizeStr)
+	if err != nil {
+		return 0, fmt.Errorf(errors.InvalidBatchSizeError)
+	}
+	return batchSize, nil
 }

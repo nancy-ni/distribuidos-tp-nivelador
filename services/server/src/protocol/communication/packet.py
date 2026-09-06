@@ -1,6 +1,9 @@
 from protocol.messages import message_codes, bet, ask_winners, batch
 from protocol.common import errors
 
+PACKET_MIN_LEN = 2
+PACKET_LENGTH_BYTES = 2
+
 class Packet:
     def __init__(self, message_code, message):
         self.message_code = message_code
@@ -15,10 +18,9 @@ class Packet:
 
     @classmethod
     def from_bytes(cls, data):
-        offset = 0
-
-        if len(data) < offset + 1:
+        if len(data) < PACKET_MIN_LEN:
             raise ValueError(errors.PACKET_TOO_SHORT_ERR)
+        offset = 0
         message_code = int(data[offset])
         offset += 1
 

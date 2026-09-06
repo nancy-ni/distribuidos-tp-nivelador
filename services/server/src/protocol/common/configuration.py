@@ -1,0 +1,2 @@
+SOCKET_TIMEOUT_SEC = 30
+LOTTERY_STORAGE_PATH = "received_bets.csv"

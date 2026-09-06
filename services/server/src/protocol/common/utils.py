@@ -1,3 +1,4 @@
+from protocol.common.errors import DESERIALIZE_UINT32_ERR, DESERIALIZE_UINT16_ERR
 
 def uint32_to_bytes(number):
     return bytes([
@@ -8,12 +9,13 @@ def uint32_to_bytes(number):
     ])
 
 def bytes_to_uint32(data):
-    offset = 0
+    if len(data) < 4:
+        raise ValueError(DESERIALIZE_UINT32_ERR)
     return (
-        data[offset] << 24 | 
-        data[offset+1] << 16 |
-        data[offset+2] << 8 | 
-        data[offset+3]
+        data[0] << 24 | 
+        data[1] << 16 |
+        data[2] << 8 | 
+        data[3]
     )
 
 def uint16_to_bytes(number):
@@ -23,8 +25,9 @@ def uint16_to_bytes(number):
     ])
 
 def bytes_to_uint16(data):
-    offset = 0
+    if len(data) < 2:
+        raise ValueError(DESERIALIZE_UINT16_ERR)
     return (
-        data[offset] << 8 |
-        data[offset+1]
+        data[0] << 8 |
+        data[1]
     )

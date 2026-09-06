@@ -4,6 +4,7 @@ import os
 import threading
 import signal
 from lottery import Lottery
+from protocol.common.configuration import SOCKET_TIMEOUT_SEC, LOTTERY_STORAGE_PATH
 from protocol.messages import message_codes
 from protocol.messages.winner import Winner
 from protocol.messages.finish import Finish
@@ -31,7 +32,7 @@ class Server:
             self.server_socket.close()
 
     def _handle_client(self, client_socket, lottery_manager):
-        client_socket.settimeout(30)
+        client_socket.settimeout(SOCKET_TIMEOUT_SEC)
 
         action = "handle-client"
         message_amount = 0
@@ -42,17 +43,9 @@ class Server:
             if client_agency_id is not None:
                 self.send_winners(client_socket, client_agency_id, lottery_manager)
 
-            logger.info(
-                action,
-                logger.LogResult.success,
-                "messages-amount",
-                message_amount,
-            )
-
+            logger.info(action, logger.LogResult.success, "messages-amount", message_amount)
         except Exception as e:
-            logger.error(
-                action, logger.LogResult.fail, "messages-amount", message_amount
-            )
+            logger.error(action, logger.LogResult.fail, "messages-amount", message_amount)
             raise e
 
         finally:
@@ -132,7 +125,7 @@ class Server:
         self._handle_shutdown(lottery_manager, handlers)
 
     def _setup_lottery_manager(self):
-        lottery = Lottery("received_bets.csv")
+        lottery = Lottery(LOTTERY_STORAGE_PATH)
         min_quorum = int(os.getenv("AGENCY_QUORUM_MIN"))
         return LotteryManager(lottery, min_quorum)
 

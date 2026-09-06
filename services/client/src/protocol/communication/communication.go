@@ -4,18 +4,18 @@ import (
 	"net"
 	"time"
 
-	protocol "github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol/common"
+	common "github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol/common"
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/safe_socket"
 )
 
 func SendPacket(socket net.Conn, packet Packet) error {
-	if err := socket.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil {
+	if err := socket.SetWriteDeadline(time.Now().Add(common.SOCKET_WRITE_TIMEOUT_SEC * time.Second)); err != nil {
 		return err
 	}
 
 	packetBytes := packet.ToBytes()
 	packetLength := uint16(len(packetBytes))
-	packetLengthBytes := protocol.Uint16ToBytes(packetLength)
+	packetLengthBytes := common.Uint16ToBytes(packetLength)
 
 	fullPacket := append(packetLengthBytes, packetBytes...)
 	if err := safe_socket.SendAll(socket, fullPacket); err != nil {
@@ -25,15 +25,15 @@ func SendPacket(socket net.Conn, packet Packet) error {
 }
 
 func ReceivePacket(socket net.Conn) (Packet, error) {
-	if err := socket.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
+	if err := socket.SetReadDeadline(time.Now().Add(common.SOCKET_READ_TIMEOUT_SEC * time.Second)); err != nil {
 		return Packet{}, err
 	}
 
-	packetLengthBytes, err := safe_socket.RecvAll(socket, 2)
+	packetLengthBytes, err := safe_socket.RecvAll(socket, PACKET_LENGTH_BYTES)
 	if err != nil {
 		return Packet{}, err
 	}
-	packetLength, err := protocol.BytesToUint16(packetLengthBytes)
+	packetLength, err := common.BytesToUint16(packetLengthBytes)
 	if err != nil {
 		return Packet{}, err
 	}

@@ -7,9 +7,13 @@ import (
 	common "github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol/common"
 )
 
+const BET_MIN_LEN = 22
+const AGENCY_ID_LEN_BYTES = 4
 const FIRSTNAME_MAX_LEN = 255
 const LASTNAME_MAX_LEN = 255
-const BET_MIN_LEN = 22
+const BIRTHDAY_LEN_BYTES = 10
+const DNI_LEN_BYTES = 4
+const BET_NUMBER_LEN_BYTES = 2
 
 type Bet struct {
 	agencyId  uint32
@@ -69,14 +73,14 @@ func BetFromBytes(data []byte) (*Bet, error) {
 	offset := 0
 
 	// agency id
-	if len(data) < offset+4 {
+	if len(data) < offset+AGENCY_ID_LEN_BYTES {
 		return nil, fmt.Errorf(common.DeserializeBetError)
 	}
-	agencyId, err := common.BytesToUint32(data[offset : offset+4])
+	agencyId, err := common.BytesToUint32(data[offset : offset+AGENCY_ID_LEN_BYTES])
 	if err != nil {
 		return nil, fmt.Errorf(common.DeserializeBetError)
 	}
-	offset += 4
+	offset += AGENCY_ID_LEN_BYTES
 
 	// first name
 	firstNameLen := int(data[offset])
@@ -100,31 +104,31 @@ func BetFromBytes(data []byte) (*Bet, error) {
 	offset += lastNameLen
 
 	// birthday
-	if len(data) < offset+10 {
+	if len(data) < offset+BIRTHDAY_LEN_BYTES {
 		return nil, fmt.Errorf(common.DeserializeBetError)
 	}
-	birthday := string(data[offset : offset+10])
-	offset += 10
+	birthday := string(data[offset : offset+BIRTHDAY_LEN_BYTES])
+	offset += BIRTHDAY_LEN_BYTES
 
 	// dni
-	if len(data) < offset+4 {
+	if len(data) < offset+DNI_LEN_BYTES {
 		return nil, fmt.Errorf(common.DeserializeBetError)
 	}
-	dni, err := common.BytesToUint32(data[offset : offset+4])
+	dni, err := common.BytesToUint32(data[offset : offset+DNI_LEN_BYTES])
 	if err != nil {
 		return nil, fmt.Errorf(common.DeserializeBetError)
 	}
-	offset += 4
+	offset += DNI_LEN_BYTES
 
 	// betNumber
-	if len(data) < offset+2 {
+	if len(data) < offset+BET_NUMBER_LEN_BYTES {
 		return nil, fmt.Errorf(common.DeserializeBetError)
 	}
-	betNumber, err := common.BytesToUint16(data[offset : offset+2])
+	betNumber, err := common.BytesToUint16(data[offset : offset+BET_NUMBER_LEN_BYTES])
 	if err != nil {
 		return nil, fmt.Errorf(common.DeserializeBetError)
 	}
-	offset += 2
+	offset += BET_NUMBER_LEN_BYTES
 
 	return &Bet{agencyId: agencyId, firstName: firstName, lastName: lastName, birthday: birthday, dni: dni, betNumber: betNumber}, nil
 }

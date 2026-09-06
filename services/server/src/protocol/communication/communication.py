@@ -1,6 +1,6 @@
 from protocol.common.utils import uint16_to_bytes, bytes_to_uint16
 import safe_socket
-from .packet import Packet
+from .packet import Packet, PACKET_LENGTH_BYTES
 
 def send_packet(socket, packet):
     packet_bytes = packet.to_bytes()
@@ -12,7 +12,7 @@ def send_packet(socket, packet):
 
 
 def receive_packet(socket) -> Packet:
-    packet_length_bytes = safe_socket.recv_all(socket, 2)
+    packet_length_bytes = safe_socket.recv_all(socket, PACKET_LENGTH_BYTES)
     packet_length = bytes_to_uint16(packet_length_bytes)
     packet_bytes = safe_socket.recv_all(socket, packet_length)
 
