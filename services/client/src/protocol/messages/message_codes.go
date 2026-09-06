@@ -7,4 +7,5 @@ const (
 	WINNER_CODE      = 0x04
 	FINISH_CODE      = 0x05
 	ACK_CODE         = 0x06
+	ERROR_CODE       = 0x07
 )

@@ -1,13 +1,18 @@
 package communication
 
 import (
-	"io"
+	"net"
+	"time"
 
 	protocol "github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol/common"
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/safe_socket"
 )
 
-func SendPacket(socket io.Writer, packet Packet) error {
+func SendPacket(socket net.Conn, packet Packet) error {
+	if err := socket.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		return err
+	}
+
 	packetBytes := packet.ToBytes()
 	packetLength := uint16(len(packetBytes))
 	packetLengthBytes := protocol.Uint16ToBytes(packetLength)
@@ -19,7 +24,11 @@ func SendPacket(socket io.Writer, packet Packet) error {
 	return nil
 }
 
-func ReceivePacket(socket io.Reader) (Packet, error) {
+func ReceivePacket(socket net.Conn) (Packet, error) {
+	if err := socket.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		return Packet{}, err
+	}
+
 	packetLengthBytes, err := safe_socket.RecvAll(socket, 2)
 	if err != nil {
 		return Packet{}, err

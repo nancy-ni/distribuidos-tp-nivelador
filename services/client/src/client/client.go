@@ -162,13 +162,18 @@ func (client *Client) sendBets() error {
 				return err
 			}
 
-			_, err := communication.ReceivePacket(client.conn)
+			response, err := communication.ReceivePacket(client.conn)
 			if err != nil {
 				if client.checkShutdown() {
 					return nil
 				}
 				logger.Error("send-message", logger.Fail, messageArgs...)
 				return err
+			}
+			if response.MessageCode == messages.ERROR_CODE {
+				if errorMsg, ok := response.Message.(*messages.ErrorMessage); ok {
+					return fmt.Errorf("%s", errorMsg.Reason)
+				}
 			}
 			batch.Bets = []messages.Bet{}
 			messageId++
@@ -223,7 +228,6 @@ func (client *Client) receiveWinners() error {
 	defer outputFile.Close()
 
 	for {
-		// TODO: agregar timeout socket
 		packet, err := communication.ReceivePacket(client.conn)
 		if err != nil {
 			if client.checkShutdown() {
@@ -234,6 +238,11 @@ func (client *Client) receiveWinners() error {
 		}
 		if packet.MessageCode == messages.FINISH_CODE {
 			break
+		}
+		if packet.MessageCode == messages.ERROR_CODE {
+			if errorMsg, ok := packet.Message.(*messages.ErrorMessage); ok {
+				return fmt.Errorf("%s", errorMsg.Reason)
+			}
 		}
 		if packet.MessageCode != messages.WINNER_CODE {
 			logger.Error("recv-response", logger.Fail)

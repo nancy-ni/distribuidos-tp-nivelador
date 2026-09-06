@@ -56,8 +56,8 @@ class BetWrapper:
 
             bet = Bet(agency_id, firstname, lastname, dni, birthday, betNumber)
 
-            return cls(bet), None
+            return cls(bet)
         
         except Exception as e:
-            return None, ValueError(f"{errors.DESERIALIZE_BET_ERR}: {e}")
+            raise ValueError(f"{errors.DESERIALIZE_BET_ERR}: {e}")
 

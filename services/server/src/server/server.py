@@ -8,6 +8,7 @@ from protocol.messages import message_codes
 from protocol.messages.winner import Winner
 from protocol.messages.finish import Finish
 from protocol.messages.ack import Ack
+from protocol.messages.error import ErrorMessage
 from protocol.messages.bet import BetWrapper
 from protocol.communication import communication
 from protocol.communication.packet import Packet
@@ -30,6 +31,8 @@ class Server:
             self.server_socket.close()
 
     def _handle_client(self, client_socket, lottery_manager):
+        client_socket.settimeout(30)
+
         action = "handle-client"
         message_amount = 0
         try:
@@ -53,9 +56,9 @@ class Server:
             raise e
 
         finally:
-            client_socket.close()
             with self.lock:
                 if client_socket in self.active_connections:
+                    client_socket.close()
                     self.active_connections.remove(client_socket)
 
     def receive_bets(self, client_socket, lottery_manager):
@@ -63,26 +66,33 @@ class Server:
 
         action = "handle-client"
         message_amount = 0
-        while not self.shutdown_event.is_set():
-            packet, err = communication.receive_packet(client_socket)
-            if err:
-                logger.error("recv-packet", logger.LogResult.fail, "messages-amount", message_amount)
-                continue
-            if packet.message_code == message_codes.ASK_WINNERS_CODE:
-                break
-            if packet.message_code != message_codes.BATCH_CODE or len(packet.message.bets) == 0:
-                logger.error(action, logger.LogResult.fail, "messages-amount", message_amount)
-                continue
+        try :
+            while not self.shutdown_event.is_set():
+                packet = communication.receive_packet(client_socket)
 
-            if client_agency_id is None:
-                client_agency_id = packet.message.bets[0].bet.agency_id
+                if packet.message_code == message_codes.ASK_WINNERS_CODE:
+                    break
+                if packet.message_code != message_codes.BATCH_CODE or len(packet.message.bets) == 0:
+                    logger.error(action, logger.LogResult.fail, "messages-amount", message_amount)
+                    continue
 
-            ack_message = Ack(client_agency_id)
-            ack_packet = Packet(message_codes.ACK_CODE, ack_message)
-            communication.send_packet(client_socket, ack_packet)
+                if client_agency_id is None:
+                    client_agency_id = packet.message.bets[0].bet.agency_id
 
-            lottery_manager.store_bets(packet.message.get_bets())
-            message_amount += 1
+                ack_message = Ack(client_agency_id)
+                ack_packet = Packet(message_codes.ACK_CODE, ack_message)
+                communication.send_packet(client_socket, ack_packet)
+
+                lottery_manager.store_bets(packet.message.get_bets())
+                message_amount += 1
+
+        except ValueError as e:
+            error_message = ErrorMessage(str(e))
+            error_packet = Packet(message_codes.ERROR_CODE, error_message)
+            communication.send_packet(client_socket, error_packet)
+            raise e
+        except ConnectionError as e:
+            raise e
 
         return client_agency_id, message_amount
 
@@ -121,7 +131,6 @@ class Server:
                 try:
                     logger.info(action, logger.LogResult.in_progress)
                     client_socket, _ = server_socket.accept()
-                    print("LLEGUE ACA")
                 except Exception as e:
                     if self.shutdown_event.is_set():
                         break

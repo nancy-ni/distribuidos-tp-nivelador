@@ -18,21 +18,20 @@ class Packet:
         offset = 0
 
         if len(data) < offset + 1:
-            return None, ValueError(errors.PACKET_TOO_SHORT_ERR)
+            raise ValueError(errors.PACKET_TOO_SHORT_ERR)
         message_code = int(data[offset])
         offset += 1
 
         try:
             match message_code:
                 case message_codes.BATCH_CODE:
-                    message, err = batch.Batch.from_bytes(data[offset:])
+                    message = batch.Batch.from_bytes(data[offset:])
                 case message_codes.ASK_WINNERS_CODE:
-                    message, err = ask_winners.AskWinners.from_bytes(data[offset:])
+                    message = ask_winners.AskWinners.from_bytes(data[offset:])
                 case _:
-                    return None, ValueError(errors.UNEXPECTED_MESSAGE_ERR)
-            if err is not None:
-                return None, err
-        except Exception as e:
-            return None, ValueError(f"{errors.DESERIALIZE_PACKET_ERR}: {e}")
+                    raise ValueError(errors.UNEXPECTED_MESSAGE_ERR)
 
-        return cls(message_code, message), None
+        except Exception as e:
+            raise ValueError(f"{errors.DESERIALIZE_PACKET_ERR}: {e}")
+
+        return cls(message_code, message)

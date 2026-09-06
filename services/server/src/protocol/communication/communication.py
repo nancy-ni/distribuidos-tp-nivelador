@@ -3,29 +3,17 @@ import safe_socket
 from .packet import Packet
 
 def send_packet(socket, packet):
-    try:
-        packet_bytes = packet.to_bytes()
-        packet_length = len(packet_bytes)
-        packet_length_bytes = uint16_to_bytes(packet_length)
+    packet_bytes = packet.to_bytes()
+    packet_length = len(packet_bytes)
+    packet_length_bytes = uint16_to_bytes(packet_length)
 
-        full_packet = packet_length_bytes + packet_bytes
-        safe_socket.send_all(socket, full_packet)
-    
-        return None
-    except Exception as e:
-        return e
+    full_packet = packet_length_bytes + packet_bytes
+    safe_socket.send_all(socket, full_packet)
 
 
 def receive_packet(socket) -> Packet:
-    try:
-        packet_length_bytes = safe_socket.recv_all(socket, 2)
-        packet_length = bytes_to_uint16(packet_length_bytes)
+    packet_length_bytes = safe_socket.recv_all(socket, 2)
+    packet_length = bytes_to_uint16(packet_length_bytes)
+    packet_bytes = safe_socket.recv_all(socket, packet_length)
 
-        packet_bytes = safe_socket.recv_all(socket, packet_length)
-        packet, err = Packet.from_bytes(packet_bytes)
-        if err:
-            return None, err
-
-        return packet, None
-    except Exception as e:
-        return None, e
+    return Packet.from_bytes(packet_bytes)

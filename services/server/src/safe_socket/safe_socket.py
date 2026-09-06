@@ -7,6 +7,8 @@ def recv_all(socket: socket.socket, size):
     buff = b""
     while len(buff) < size:
         received = socket.recv(size - len(buff))
+        if not received:
+            raise ConnectionError("Hubo un problema con la conexion")
         buff += received
 
     return buff

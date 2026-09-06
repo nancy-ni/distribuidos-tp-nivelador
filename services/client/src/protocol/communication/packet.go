@@ -56,6 +56,8 @@ func PacketFromBytes(data []byte) (Packet, error) {
 		message, err = messages.BetFromBytes(data[offset:])
 	case messages.FINISH_CODE:
 		message, err = messages.FinishFromBytes(data[offset:])
+	case messages.ERROR_CODE:
+		message, err = messages.ErrorFromBytes(data[offset:])
 	default:
 		return Packet{}, fmt.Errorf(errors.UnexpectedMessage)
 	}

@@ -14,6 +14,6 @@ class Ack:
     def from_bytes(cls, data):
         try:
             agency_id = bytes_to_uint32(data[:4])
-            return cls(agency_id), None
+            return cls(agency_id)
         except Exception as e:
-            return None, ValueError(f"{errors.DESERIALIZE_FINISH_ERR}: {e}")
+            raise ValueError(f"{errors.DESERIALIZE_FINISH_ERR}: {e}")
