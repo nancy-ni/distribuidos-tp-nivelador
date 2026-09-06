@@ -78,17 +78,12 @@ func (client *Client) checkShutdown() bool {
 	return client.isShuttingDown
 }
 
-func (client *Client) Run() error {
-	defer client.conn.Close()
-
+func (client *Client) handleShutdown(done chan struct{}) {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(signalChannel)
-
-	done := make(chan struct{})
-	defer close(done)
 
 	go func() {
+		defer signal.Stop(signalChannel)
 		select {
 		case <-signalChannel:
 			client.setShutdown()
@@ -97,16 +92,26 @@ func (client *Client) Run() error {
 			return
 		}
 	}()
+}
+
+func (client *Client) Run() error {
+	done := make(chan struct{})
+	defer client.conn.Close()
+	defer close(done)
+	client.handleShutdown(done)
 
 	if err := client.sendBets(); err != nil {
+		logger.Error("send-bets", logger.Fail)
 		return err
 	}
 
 	if err := client.sendWinnersRequest(); err != nil {
+		logger.Error("ask-winners", logger.Fail)
 		return err
 	}
 
 	if err := client.receiveWinners(); err != nil {
+		logger.Error("recv-winners", logger.Fail)
 		return err
 	}
 
@@ -151,56 +156,63 @@ func (client *Client) sendBets() error {
 
 		batch.Bets = append(batch.Bets, bet)
 		if len(batch.Bets) == batchSize {
-			batchPacket := communication.NewPacket(messages.BATCH_CODE, &batch)
-			logger.Info("test-echo-server", logger.InProgress, messageArgs...)
-
-			if err := communication.SendPacket(client.conn, batchPacket); err != nil {
+			if err := client.sendBatch(batch, messageId); err != nil {
 				if client.checkShutdown() {
 					return nil
 				}
-				logger.Error("send-message", logger.Fail, messageArgs...)
 				return err
-			}
-
-			response, err := communication.ReceivePacket(client.conn)
-			if err != nil {
-				if client.checkShutdown() {
-					return nil
-				}
-				logger.Error("send-message", logger.Fail, messageArgs...)
-				return err
-			}
-			if response.MessageCode == messages.ERROR_CODE {
-				if errorMsg, ok := response.Message.(*messages.ErrorMessage); ok {
-					return fmt.Errorf("%s", errorMsg.Reason)
-				}
 			}
 			batch.Bets = []messages.Bet{}
 			messageId++
 		}
-
 	}
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf(errors.ScanFileError)
 	}
 
-	messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId}
 	if len(batch.Bets) > 0 {
-		batchPacket := communication.NewPacket(messages.BATCH_CODE, &batch)
-		logger.Info("test-echo-server", logger.InProgress, messageArgs...)
-
-		if err := communication.SendPacket(client.conn, batchPacket); err != nil {
+		if err := client.sendBatch(batch, messageId); err != nil {
 			if client.checkShutdown() {
 				return nil
 			}
-			logger.Error("send-message", logger.Fail, messageArgs...)
 			return err
 		}
-
 		batch.Bets = []messages.Bet{}
 		messageId++
 	}
 
+	return nil
+}
+
+func (client *Client) sendBatch(batch messages.Batch, messageId int) error {
+	messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId}
+	logger.Info("test-echo-server", logger.InProgress, messageArgs...)
+
+	batchPacket := communication.NewPacket(messages.BATCH_CODE, &batch)
+	if err := communication.SendPacket(client.conn, batchPacket); err != nil {
+		logger.Error("send-batch", logger.Fail, messageArgs...)
+		return err
+	}
+	if err := client.receiveAck(); err != nil {
+		logger.Error("recv-ack", logger.Fail, messageArgs...)
+		return err
+	}
+	return nil
+}
+
+func (client *Client) receiveAck() error {
+	response, err := communication.ReceivePacket(client.conn)
+	if err != nil {
+		return err
+	}
+	if response.MessageCode != messages.ACK_CODE && response.MessageCode != messages.ERROR_CODE {
+		return fmt.Errorf(errors.UnexpectedMessage)
+	}
+	if response.MessageCode == messages.ERROR_CODE {
+		if errorMsg, ok := response.Message.(*messages.ErrorMessage); ok {
+			return fmt.Errorf("%s", errorMsg.Reason)
+		}
+	}
 	return nil
 }
 
@@ -213,7 +225,6 @@ func (client *Client) sendWinnersRequest() error {
 	askWinners := messages.NewInquirie(uint32(agencyIdNumber))
 	askWinnersPacket := communication.NewPacket(messages.ASK_WINNERS_CODE, &askWinners)
 	if err := communication.SendPacket(client.conn, askWinnersPacket); err != nil {
-		logger.Error("ask-winners", logger.Fail)
 		return err
 	}
 
@@ -233,37 +244,27 @@ func (client *Client) receiveWinners() error {
 			if client.checkShutdown() {
 				return nil
 			}
-			logger.Error("recv-response", logger.Fail)
 			return err
 		}
-		if packet.MessageCode == messages.FINISH_CODE {
-			break
-		}
-		if packet.MessageCode == messages.ERROR_CODE {
+
+		switch packet.MessageCode {
+		case messages.FINISH_CODE:
+			return nil
+		case messages.ERROR_CODE:
 			if errorMsg, ok := packet.Message.(*messages.ErrorMessage); ok {
 				return fmt.Errorf("%s", errorMsg.Reason)
 			}
-		}
-		if packet.MessageCode != messages.WINNER_CODE {
-			logger.Error("recv-response", logger.Fail)
-			continue
-		}
-
-		switch message := packet.Message.(type) {
-		case *messages.Bet:
-			_, err := outputFile.WriteString(message.ToString() + "\n")
-			fmt.Println("RECIBI WINNER CORRECTAMENTE")
-			if err != nil {
-				logger.Error("write-response", logger.Fail)
-				continue
+		case messages.WINNER_CODE:
+			if bet, ok := packet.Message.(*messages.Bet); ok {
+				_, err := outputFile.WriteString(bet.ToString() + "\n")
+				fmt.Println("RECIBI WINNER CORRECTAMENTE")
+				if err != nil {
+					logger.Error("save-winner", logger.Fail)
+					return err
+				}
 			}
-		default:
-			logger.Error("recv-response", logger.Fail)
-			continue
 		}
 	}
-
-	return nil
 }
 
 func assembleBet(betString string, agencyId uint32) (messages.Bet, error) {
@@ -272,6 +273,9 @@ func assembleBet(betString string, agencyId uint32) (messages.Bet, error) {
 		return messages.Bet{}, fmt.Errorf(errors.AssembleBetError, betData)
 	}
 	firstName, lastName, dniString, birthday, betNumberString := betData[0], betData[1], betData[2], betData[3], betData[4]
+	if len(firstName) > 255 || len(lastName) > 255 {
+		return messages.Bet{}, fmt.Errorf(errors.AssembleBetError, betData)
+	}
 	dni, err := strconv.ParseUint(dniString, 10, 32)
 	if err != nil {
 		return messages.Bet{}, fmt.Errorf(errors.AssembleBetError, betData)
