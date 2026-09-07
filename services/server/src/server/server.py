@@ -26,10 +26,12 @@ class Server:
         self.shutdown_event = threading.Event()
         signal.signal(signal.SIGTERM, self._set_shutdown)
 
+
     def _set_shutdown(self, signum, frame):
         self.shutdown_event.set()
         if self.server_socket is not None:
             self.server_socket.close()
+
 
     def _handle_client(self, client_socket, lottery_manager):
         client_socket.settimeout(SOCKET_TIMEOUT_SEC)
@@ -51,16 +53,17 @@ class Server:
         finally:
             self._cleanup_client(client_socket)
 
+
     def _cleanup_client(self, client_socket):
         with self.lock:
             if client_socket in self.active_connections:
                 client_socket.close()
                 self.active_connections.remove(client_socket)
 
+
     def receive_bets(self, client_socket, lottery_manager):
         client_agency_id = None
 
-        action = "handle-client"
         message_amount = 0
         try :
             while not self.shutdown_event.is_set():
@@ -68,18 +71,13 @@ class Server:
 
                 if packet.message_code == message_codes.ASK_WINNERS_CODE:
                     break
-                if packet.message_code != message_codes.BATCH_CODE or len(packet.message.bets) == 0:
-                    logger.error(action, logger.LogResult.fail, "messages-amount", message_amount)
+
+                agency_id, ok = self._process_packet(packet, client_socket, lottery_manager, message_amount)
+                if not ok:
                     continue
 
                 if client_agency_id is None:
-                    client_agency_id = packet.message.bets[0].bet.agency_id
-
-                ack_message = Ack(client_agency_id)
-                ack_packet = Packet(message_codes.ACK_CODE, ack_message)
-                communication.send_packet(client_socket, ack_packet)
-
-                lottery_manager.store_bets(packet.message.get_bets())
+                    client_agency_id = agency_id
                 message_amount += 1
 
         except ValueError as e:
@@ -90,10 +88,26 @@ class Server:
 
         return client_agency_id, message_amount
 
+
+    def _process_packet(self, packet, client_socket, lottery_manager, message_amount):
+        if packet.message_code != message_codes.BATCH_CODE or len(packet.message.bets) == 0:
+            logger.error("recv-bets", logger.LogResult.fail, "messages-amount", message_amount)
+            return None, False
+        else:
+            client_agency_id = packet.message.bets[0].bet.agency_id
+            ack_message = Ack(client_agency_id)
+            ack_packet = Packet(message_codes.ACK_CODE, ack_message)
+            communication.send_packet(client_socket, ack_packet)
+
+            lottery_manager.store_bets(packet.message.get_bets())
+            return client_agency_id, True
+
+
     def _send_error_response(self, client_socket, reason):
         error_message = ErrorMessage(reason)
         error_packet = Packet(message_codes.ERROR_CODE, error_message)
         communication.send_packet(client_socket, error_packet)
+
 
     def send_winners(self, client_socket, client_agency_id, lottery_manager):
         response_queue = lottery_manager.report_ready(client_agency_id)
@@ -112,6 +126,7 @@ class Server:
         packet = Packet(message_codes.FINISH_CODE, finish_message)
         communication.send_packet(client_socket, packet)
 
+
     def run(self):
         lottery_manager = self._setup_lottery_manager()
         lottery_manager.start()
@@ -124,10 +139,12 @@ class Server:
             self._accept_connections(self.server_socket, lottery_manager, handlers)
         self._handle_shutdown(lottery_manager, handlers)
 
+
     def _setup_lottery_manager(self):
         lottery = Lottery(LOTTERY_STORAGE_PATH)
         min_quorum = int(os.getenv("AGENCY_QUORUM_MIN"))
         return LotteryManager(lottery, min_quorum)
+
 
     def _accept_connections(self, server_socket, lottery_manager, handlers):
         action = "accept-connection"
@@ -148,6 +165,7 @@ class Server:
             thread = threading.Thread(target=self._handle_client, args=(client_socket, lottery_manager))
             handlers.append(thread)
             thread.start()
+
 
     def _handle_shutdown(self, lottery_manager, handlers):
         lottery_manager.stop()

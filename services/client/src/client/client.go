@@ -243,25 +243,31 @@ func (client *Client) receiveWinners() error {
 			}
 			return err
 		}
-
-		switch packet.MessageCode {
-		case messages.FINISH_CODE:
+		if packet.MessageCode == messages.FINISH_CODE {
 			return nil
-		case messages.ERROR_CODE:
-			if errorMsg, ok := packet.Message.(*messages.ErrorMessage); ok {
-				return fmt.Errorf("%s", errorMsg.Reason)
-			}
-		case messages.WINNER_CODE:
-			if bet, ok := packet.Message.(*messages.Bet); ok {
-				_, err := outputFile.WriteString(bet.ToString() + "\n")
-				fmt.Println("RECIBI WINNER CORRECTAMENTE")
-				if err != nil {
-					logger.Error("save-winner", logger.Fail)
-					return err
-				}
+		}
+		if err := client.processPacket(packet, outputFile); err != nil {
+			return err
+		}
+	}
+}
+
+func (client *Client) processPacket(packet communication.Packet, outputFile *os.File) error {
+	switch packet.MessageCode {
+	case messages.ERROR_CODE:
+		if errorMsg, ok := packet.Message.(*messages.ErrorMessage); ok {
+			return fmt.Errorf("%s", errorMsg.Reason)
+		}
+	case messages.WINNER_CODE:
+		if bet, ok := packet.Message.(*messages.Bet); ok {
+			_, err := outputFile.WriteString(bet.ToString() + "\n")
+			if err != nil {
+				logger.Error("save-winner", logger.Fail)
+				return err
 			}
 		}
 	}
+	return nil
 }
 
 func assembleBet(betString string, agencyId uint32) (messages.Bet, error) {
