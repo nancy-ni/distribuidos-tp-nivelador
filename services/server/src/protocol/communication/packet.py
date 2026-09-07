@@ -9,6 +9,7 @@ class Packet:
         self.message_code = message_code
         self.message = message
 
+
     def to_bytes(self):
         buf = bytearray()
         buf.append(self.message_code)

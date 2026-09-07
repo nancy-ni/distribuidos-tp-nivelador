@@ -18,6 +18,8 @@ func NewBatch(bets []Bet) Batch {
 	return Batch{Bets: bets}
 }
 
+// Serializa un Batch. Incluye primero la cantidad de apuestas que contiene el batch, y por
+// cada apuesta se incluye al principio su largo en bytes.
 func (batch *Batch) ToBytes() []byte {
 	var bytes []byte
 

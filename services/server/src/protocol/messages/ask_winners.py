@@ -6,6 +6,7 @@ class AskWinners:
     def __init__(self, agency_id):
         self.agency_id = agency_id
 
+
     @classmethod
     def from_bytes(cls, data):
         if len(data) < AGENCY_ID_LEN_BYTES:

@@ -6,7 +6,6 @@ import signal
 from lottery import Lottery
 from protocol.common.configuration import SOCKET_TIMEOUT_SEC, LOTTERY_STORAGE_PATH
 from protocol.messages import message_codes
-from protocol.messages.winner import Winner
 from protocol.messages.finish import Finish
 from protocol.messages.ack import Ack
 from protocol.messages.error import ErrorMessage
@@ -61,6 +60,8 @@ class Server:
                 self.active_connections.remove(client_socket)
 
 
+    # Recibe las apuestas (agrupadas en Batches) desde las agencias, hasta que reciba el
+    # mensaje AskWinners, que indica que la agencia esta lista para recibir sus ganadores.
     def receive_bets(self, client_socket, lottery_manager):
         client_agency_id = None
 
@@ -89,6 +90,8 @@ class Server:
         return client_agency_id, message_amount
 
 
+    # Por cada batch recibido, se delega al LotteryManager para que guarde las apuestas, y
+    # responde con un Ack.
     def _process_packet(self, packet, client_socket, lottery_manager, message_amount):
         if packet.message_code != message_codes.BATCH_CODE or len(packet.message.bets) == 0:
             logger.error("recv-bets", logger.LogResult.fail, "messages-amount", message_amount)
@@ -109,6 +112,11 @@ class Server:
         communication.send_packet(client_socket, error_packet)
 
 
+    # Responde los ganadores entre las apuestas recibidas. Primero reporta al LotteryManager 
+    # para indicar que la agencia esta lista para realizar el sorteo. Posteriormente, cuando
+    # el LotteryManager realice el sorteo, este va comunicando a traves del canal
+    # los respectivos ganadores si hay, y estos se envian a la agencia. 
+    # Finalmente, envia el mensaje Finish para indicar el fin del intercambio cliente-servidor.
     def send_winners(self, client_socket, client_agency_id, lottery_manager):
         response_queue = lottery_manager.report_ready(client_agency_id)
 
@@ -117,8 +125,7 @@ class Server:
             if winner_bet is None:
                 break
 
-            winner_bet_wrapper = BetWrapper(winner_bet)
-            winner_message = Winner(winner_bet_wrapper)
+            winner_message = BetWrapper(winner_bet)
             packet = Packet(message_codes.WINNER_CODE, winner_message)
             communication.send_packet(client_socket, packet)
 

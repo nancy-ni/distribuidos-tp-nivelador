@@ -122,6 +122,10 @@ func (client *Client) Run() error {
 	return nil
 }
 
+// Lee el archivo de input linea por linea, ensambla la apuesta de cada linea, y cuando
+// se acumulan suficientes apuestas para formar un batch (o cuando se termina el archivo),
+// se envia este ultimo al servidor. En caso de error, se chequea si el cliente estaba en
+// un caso de shutdown, en lugar de un error de conexion.
 func (client *Client) sendBets() error {
 	inputFile, err := os.Open(os.Getenv("INPUT_FILE"))
 	if err != nil {
@@ -181,6 +185,7 @@ func (client *Client) sendBets() error {
 	return nil
 }
 
+// Envia un batch y espera recibir un Ack de respuesta por parte del servidor.
 func (client *Client) sendBatch(batch messages.Batch, messageId int) error {
 	messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId}
 	logger.Info("test-echo-server", logger.InProgress, messageArgs...)
@@ -213,13 +218,15 @@ func (client *Client) receiveAck() error {
 	return nil
 }
 
+// Envia un mensaje AskWinners al servidor, indicando que la agencia esta lista para
+// recibir los resultados del sorteo.
 func (client *Client) sendWinnersRequest() error {
 	agencyIdNumber, err := client.getAgencyIdNumber()
 	if err != nil {
 		return err
 	}
 
-	askWinners := messages.NewInquirie(uint32(agencyIdNumber))
+	askWinners := messages.NewAskWinners(uint32(agencyIdNumber))
 	askWinnersPacket := communication.NewPacket(messages.ASK_WINNERS_CODE, &askWinners)
 	if err := communication.SendPacket(client.conn, askWinnersPacket); err != nil {
 		return err
@@ -228,6 +235,9 @@ func (client *Client) sendWinnersRequest() error {
 	return nil
 }
 
+// Recibe las apuestas ganadoras del servidor, hasta que reciba un mensaje Finish que indica
+// el fin del intercambio (o si ocurre un timeout). A los ganadores los registra en
+// el path de output especificado.
 func (client *Client) receiveWinners() error {
 	outputFile, err := os.Create(os.Getenv("OUTPUT_FILE"))
 	if err != nil {

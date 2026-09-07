@@ -10,8 +10,10 @@ class Batch:
     def __init__(self, bets):
         self.bets = bets
 
+
     def get_bets(self):
         return [wrapper.bet for wrapper in self.bets]
+
 
     def to_bytes(self):
         buf = bytearray()
@@ -27,6 +29,7 @@ class Batch:
             buf.extend(bet_bytes)
 
         return bytes(buf)
+
 
     @classmethod
     def from_bytes(cls, data):

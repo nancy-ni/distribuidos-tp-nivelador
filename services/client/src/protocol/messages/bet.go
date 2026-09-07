@@ -39,6 +39,8 @@ func (bet *Bet) ToString() string {
 	return bet.firstName + "," + bet.lastName + "," + strconv.Itoa(int(bet.dni)) + "," + bet.birthday + "," + strconv.Itoa(int(bet.betNumber))
 }
 
+// Serializa un Bet. El orden de los campos serializados es: agencyId, firstnameLen, firstname,
+// lastnameLen, lastname, birthday, dni, betNumber.
 func (bet *Bet) ToBytes() []byte {
 	firstnameLen := len(bet.firstName)
 	lastnameLen := len(bet.lastName)
@@ -46,33 +48,40 @@ func (bet *Bet) ToBytes() []byte {
 	totalLen := BET_MIN_LEN + firstnameLen + lastnameLen
 	bytes := make([]byte, 0, totalLen)
 
+	// agencyId
 	agencyIdBytes := common.Uint32ToBytes(bet.agencyId)
 	bytes = append(bytes, agencyIdBytes...)
 
+	// firstnameLen + firstname
 	bytes = append(bytes, byte(firstnameLen))
 	bytes = append(bytes, bet.firstName...)
 
+	// lastnameLen + lastname
 	bytes = append(bytes, byte(lastnameLen))
 	bytes = append(bytes, bet.lastName...)
 
+	// birthday
 	bytes = append(bytes, bet.birthday...)
 
+	// dni
 	dniBytes := common.Uint32ToBytes(bet.dni)
 	bytes = append(bytes, dniBytes...)
 
+	// betNumber
 	betNumberBytes := common.Uint16ToBytes(bet.betNumber)
 	bytes = append(bytes, betNumberBytes...)
 
 	return bytes
 }
 
+// Deserializa un Bet, leyendo los campos en el mismo orden que la serializacion.
 func BetFromBytes(data []byte) (*Bet, error) {
 	if len(data) < BET_MIN_LEN {
 		return nil, fmt.Errorf(common.BetTooShort)
 	}
 	offset := 0
 
-	// agency id
+	// agencyId
 	if len(data) < offset+AGENCY_ID_LEN_BYTES {
 		return nil, fmt.Errorf(common.DeserializeBetError)
 	}
@@ -82,7 +91,7 @@ func BetFromBytes(data []byte) (*Bet, error) {
 	}
 	offset += AGENCY_ID_LEN_BYTES
 
-	// first name
+	// firstname
 	firstNameLen := int(data[offset])
 	offset++
 	if len(data) < offset+firstNameLen {
@@ -91,7 +100,7 @@ func BetFromBytes(data []byte) (*Bet, error) {
 	firstName := string(data[offset : offset+firstNameLen])
 	offset += firstNameLen
 
-	// last name
+	// lastname
 	if len(data) < offset+1 {
 		return nil, fmt.Errorf(common.DeserializeBetError)
 	}

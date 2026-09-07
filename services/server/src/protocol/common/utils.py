@@ -8,6 +8,7 @@ def uint32_to_bytes(number):
         number & 0xFF
     ])
 
+
 def bytes_to_uint32(data):
     if len(data) < 4:
         raise ValueError(DESERIALIZE_UINT32_ERR)
@@ -18,11 +19,13 @@ def bytes_to_uint32(data):
         data[3]
     )
 
+
 def uint16_to_bytes(number):
     return bytes([
         (number >> 8) & 0xFF,
         number & 0xFF
     ])
+
 
 def bytes_to_uint16(data):
     if len(data) < 2:

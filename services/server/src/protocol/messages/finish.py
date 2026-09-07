@@ -6,10 +6,12 @@ class Finish:
     def __init__(self, agency_id):
         self.agency_id = agency_id
 
+
     def to_bytes(self):
         buf = bytearray()
         buf.extend(self.agency_id.to_bytes(AGENCY_ID_LEN_BYTES, byteorder="big"))
         return bytes(buf)
+
 
     @classmethod
     def from_bytes(cls, data):

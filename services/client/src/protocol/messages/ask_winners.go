@@ -10,14 +10,14 @@ type AskWinners struct {
 	agencyId uint32
 }
 
-func NewInquirie(agencyId uint32) AskWinners {
+func NewAskWinners(agencyId uint32) AskWinners {
 	return AskWinners{agencyId: agencyId}
 }
 
-func (inquirie *AskWinners) ToBytes() []byte {
+func (a *AskWinners) ToBytes() []byte {
 	bytes := make([]byte, 0, AGENCY_ID_LEN_BYTES)
 
-	agencyIdBytes := common.Uint32ToBytes(inquirie.agencyId)
+	agencyIdBytes := common.Uint32ToBytes(a.agencyId)
 	bytes = append(bytes, agencyIdBytes...)
 
 	return bytes
